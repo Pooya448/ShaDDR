@@ -1,0 +1,54 @@
+experiment:
+  data_rep: voxel
+model:
+  styleset_n: 8
+  in_size: 64
+  out_size: 256
+  z_dim: 8
+  g_dim: 32
+  d_dim: 32
+train:
+  epochs: 20
+  learning_rate: 0.0001
+  d_steps: 1
+  g_steps: 1
+  r_steps: 4
+  alpha: 0.1
+  beta: 10
+  batch_size: 1
+  val_freq: 2
+eval:
+  cls_weights: checkpoint/eval/CLS_128.pth # TODO: change this
+  fid_input: output/eval/ # TODO: change this
+log:
+  run_name: all_data_256
+  project: decor-gan
+  log_model: 'True' # * Either all or True
+system:
+  accelerator: gpu
+  n_gpu: -1
+  cudnn_benchmark: True
+  strategy: ddp_find_unused_parameters_true # * ddp or fsdp
+  accelerator: gpu
+  precision: 16-mixed # * bf16-mixed for gpu >= A100 else: 16-mixed
+debug:
+  fast_dev_run: False
+data:
+  content:
+    output_res: 64
+    input_res: 256
+    filetype: voxel
+    upsample_rate: 4
+  style:
+    output_res: 256
+    input_res: 256
+    filetype: voxel 
+    upsample_rate: 4
+  num_workers: 8
+  split_dir: splits/voxel/
+  clip: 0.1
+test:
+  run_name: 07-31_17-35_final-run
+  
+  
+  
