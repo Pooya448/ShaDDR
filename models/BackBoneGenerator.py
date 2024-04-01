@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
 
 class BackBoneGenerator(nn.Module):
@@ -33,7 +34,6 @@ class BackBoneGenerator(nn.Module):
                 nn.Conv3d(
                     1 + dim_z, dim_g, 3, stride=1, dilation=1, padding=1, bias=True
                 ),
-                nn.LeakyReLU(0.02, inplace=True),
                 nn.Conv3d(
                     dim_g + dim_z,
                     dim_g * 2,
@@ -43,7 +43,6 @@ class BackBoneGenerator(nn.Module):
                     padding=2,
                     bias=True,
                 ),
-                nn.LeakyReLU(0.02, inplace=True),
                 nn.Conv3d(
                     dim_g * 2 + dim_z,
                     dim_g * 4,
@@ -53,7 +52,6 @@ class BackBoneGenerator(nn.Module):
                     padding=2,
                     bias=True,
                 ),
-                nn.LeakyReLU(0.02, inplace=True),
                 nn.Conv3d(
                     dim_g * 4 + dim_z,
                     dim_g * 8,
@@ -63,7 +61,6 @@ class BackBoneGenerator(nn.Module):
                     padding=1,
                     bias=True,
                 ),
-                nn.LeakyReLU(0.02, inplace=True),
                 nn.Conv3d(
                     dim_g * 8 + dim_z,
                     dim_g * 8,
@@ -73,7 +70,6 @@ class BackBoneGenerator(nn.Module):
                     padding=1,
                     bias=True,
                 ),
-                nn.LeakyReLU(0.02, inplace=True),
             ]
         )
 
@@ -100,5 +96,6 @@ class BackBoneGenerator(nn.Module):
             zs = z.repeat(1, 1, dimx, dimy, dimz)
             out = torch.cat([out, zs], dim=1)
             out = conv_layer(out)
+            out = F.leaky_relu(out, 0.02, inplace=True)
 
         return out

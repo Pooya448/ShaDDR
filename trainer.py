@@ -10,6 +10,7 @@ from models.Discriminator2D import Discriminator2D
 
 from dataloader.ShaddrData import ShaddrDataset
 from utils import render_voxel, get_tex_mask_d
+from tqdm import tqdm
 
 
 class ShaddrTrainer:
@@ -135,7 +136,7 @@ class ShaddrTrainer:
         )
         # stl_loader = DataLoader(self.style_dataset, batch_size=1, shuffle=True)
 
-        for epoch in range(epochs):
+        for epoch in tqdm(range(epochs)):
 
             self.geo_d_s.train()
             self.geo_d_l.train()
@@ -294,6 +295,9 @@ class ShaddrTrainer:
                     loss_g.backward()
                     self.optim_g.step()
                     self.generator.zero_grad()
+
+                    report_str = f"Epoch: {epoch}, loss_g: {loss_g.item()}, loss_r: {loss_r.item()}, loss_d: {loss_fake_l.item() + loss_fake_s.item()}"
+                    print(report_str)
 
             report_str = f"Epoch: {epoch}, loss_g: {loss_g.item()}, loss_r: {loss_r.item()}, loss_d: {loss_fake_l.item() + loss_fake_s.item()}"
             print(report_str)

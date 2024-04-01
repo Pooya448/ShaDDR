@@ -29,31 +29,51 @@ class GeometryGenerator(nn.Module):
         self.dim_g = dim_g
         self.dim_z = dim_z
 
-        # Define the convolutional layers for geometry synthesis
-        self.conv_5 = nn.ConvTranspose3d(
-            dim_g * 8 + dim_z, dim_g * 4, 4, stride=2, padding=1, bias=True
+        self.layers = nn.ModuleList(
+            [
+                nn.ConvTranspose3d(
+                    dim_g * 8 + dim_z, dim_g * 4, 4, stride=2, padding=1, bias=True
+                ),
+                nn.Conv3d(
+                    dim_g * 4 + dim_z, dim_g * 4, 3, stride=1, padding=1, bias=True
+                ),
+                nn.ConvTranspose3d(
+                    dim_g * 4 + dim_z, dim_g * 2, 4, stride=2, padding=1, bias=True
+                ),
+                nn.Conv3d(
+                    dim_g * 2 + dim_z, dim_g * 2, 3, stride=1, padding=1, bias=True
+                ),
+                nn.ConvTranspose3d(
+                    dim_g * 2 + dim_z, dim_g, 4, stride=2, padding=1, bias=True
+                ),
+                nn.Conv3d(dim_g + dim_z, dim_g, 3, stride=1, padding=1, bias=True),
+            ]
         )
-        self.conv_6 = nn.Conv3d(
-            dim_g * 4 + dim_z, dim_g * 4, 3, stride=1, padding=1, bias=True
-        )
+        # # Define the convolutional layers for geometry synthesis
+        # self.conv_5 = nn.ConvTranspose3d(
+        #     dim_g * 8 + dim_z, dim_g * 4, 4, stride=2, padding=1, bias=True
+        # )
+        # self.conv_6 = nn.Conv3d(
+        #     dim_g * 4 + dim_z, dim_g * 4, 3, stride=1, padding=1, bias=True
+        # )
 
-        self.conv_7 = nn.ConvTranspose3d(
-            dim_g * 4 + dim_z, dim_g * 2, 4, stride=2, padding=1, bias=True
-        )
-        self.conv_8 = nn.Conv3d(
-            dim_g * 2 + dim_z, dim_g * 2, 3, stride=1, padding=1, bias=True
-        )
-        self.conv_8_out = nn.Conv3d(dim_g * 2, 1, 3, stride=1, padding=1, bias=True)
+        # self.conv_7 = nn.ConvTranspose3d(
+        #     dim_g * 4 + dim_z, dim_g * 2, 4, stride=2, padding=1, bias=True
+        # )
+        # self.conv_8 = nn.Conv3d(
+        #     dim_g * 2 + dim_z, dim_g * 2, 3, stride=1, padding=1, bias=True
+        # )
+        self.s_conv = nn.Conv3d(dim_g * 2, 1, 3, stride=1, padding=1, bias=True)
 
-        self.conv_9 = nn.ConvTranspose3d(
-            dim_g * 2 + dim_z, dim_g, 4, stride=2, padding=1, bias=True
-        )
-        self.conv_10 = nn.Conv3d(
-            dim_g + dim_z, dim_g, 3, stride=1, padding=1, bias=True
-        )
-        self.conv_10_out = nn.Conv3d(dim_g, 1, 3, stride=1, padding=1, bias=True)
+        # self.conv_9 = nn.ConvTranspose3d(
+        #     dim_g * 2 + dim_z, dim_g, 4, stride=2, padding=1, bias=True
+        # )
+        # self.conv_10 = nn.Conv3d(
+        #     dim_g + dim_z, dim_g, 3, stride=1, padding=1, bias=True
+        # )
+        self.l_conv = nn.Conv3d(dim_g, 1, 3, stride=1, padding=1, bias=True)
 
-    def forward(self, voxels, z, mask_, is_training=False):
+    def forward(self, voxels, z, mask, is_training=False):
         """
         Forward pass through the generator.
 
@@ -63,35 +83,35 @@ class GeometryGenerator(nn.Module):
         Parameters:
             voxels (torch.Tensor): Input voxel data.
             z (torch.Tensor): Latent space representation to be integrated at each stage.
-            mask_ (torch.Tensor): Input mask for geometry synthesis.
+            mask (torch.Tensor): Input mask for geometry synthesis.
             is_training (bool, optional): Flag indicating if the model is in training mode. Defaults to False.
 
         Returns:
             tuple: A tuple containing two torch.Tensors representing the generated geometry at two scales.
         """
         out = voxels
-        mask_256 = F.interpolate(mask_, scale_factor=8, mode="nearest")
-        mask_128 = F.interpolate(mask_, scale_factor=4, mode="nearest")
+        mask_l = F.interpolate(mask, scale_factor=8, mode="nearest")
+        mask_s = F.interpolate(mask, scale_factor=4, mode="nearest")
 
-        # Sequential processing and integration of latent representation at each stage
-        for layer in [
-            self.conv_5,
-            self.conv_6,
-            self.conv_7,
-            self.conv_8,
-            self.conv_9,
-            self.conv_10,
-        ]:
+        for i, layer in enumerate(self.layers):
             _, _, dimx, dimy, dimz = out.size()
             zs = z.repeat(1, 1, dimx, dimy, dimz)
             out = torch.cat([out, zs], dim=1)
-            out = F.leaky_relu(layer(out), negative_slope=0.02, inplace=True)
-            if layer in [self.conv_8, self.conv_10]:
-                out = layer(out)
-                out = torch.max(torch.min(out, out * 0.002 + 0.998), out * 0.002)
-                if layer == self.conv_8:
-                    out_128 = out * mask_128
-                elif layer == self.conv_10:
-                    out_256 = out * mask_256
+            out = layer(out)
+            out = F.leaky_relu(out, negative_slope=0.02, inplace=True)
 
-        return out_256, out_128
+            if i == 3:
+                out_s = self.s_conv(out)
+                out_s = torch.max(
+                    torch.min(out_s, out_s * 0.002 + 0.998), out_s * 0.002
+                )
+            elif i == 5:
+                out_l = self.l_conv(out)
+                out_l = torch.max(
+                    torch.min(out_l, out_l * 0.002 + 0.998), out_l * 0.002
+                )
+
+        out_l = out_l * mask_l
+        out_s = out_s * mask_s
+
+        return out_l, out_s

@@ -552,17 +552,31 @@ class ShaddrDataset(Dataset):
             back, front, top, left, right = self.get_rendered_views(
                 hdf5_file, xmin, xmax, ymin, ymax, zmin, zmax
             )
-            render_style = [back, front, top, left]
+            render_style = (back, front, top, left)
+
+            # net_input = {
+            #     "mask_g": gmask_style,
+            #     "mask_d_l": dmask_style_lg,
+            #     "mask_d_s": dmask_style_sm,
+            #     "geo_l": voxel_style_lg,
+            #     "geo_s": voxel_style_sm,
+            #     "geo_in": input_style,
+            #     "bbox": torch.tensor(pos_style),
+            #     "renders": render_style,
+            # }
 
             net_input = {
-                "mask_g": gmask_style,
-                "mask_d_l": dmask_style_lg,
-                "mask_d_s": dmask_style_sm,
-                "geo_l": voxel_style_lg,
-                "geo_s": voxel_style_sm,
-                "geo_in": input_style,
-                "bbox": torch.tensor(pos_style),
-                "renders": render_style,
+                "mask_g": torch.from_numpy(gmask_style).unsqueeze(0),
+                "mask_d_l": torch.from_numpy(dmask_style_lg).unsqueeze(0),
+                "mask_d_s": torch.from_numpy(dmask_style_sm).unsqueeze(0),
+                "geo_l": torch.from_numpy(voxel_style_lg).unsqueeze(0),
+                "geo_s": torch.from_numpy(voxel_style_sm).unsqueeze(0),
+                "geo_in": torch.from_numpy(input_style).unsqueeze(0),
+                "bbox": torch.tensor(pos_style).unsqueeze(0),
+                "back_render": torch.from_numpy(back).unsqueeze(0),
+                "front_render": torch.from_numpy(front).unsqueeze(0),
+                "top_render": torch.from_numpy(top).unsqueeze(0),
+                "side_render": torch.from_numpy(left).unsqueeze(0),
             }
 
             return net_input
@@ -581,12 +595,12 @@ class ShaddrDataset(Dataset):
             pos_content = [xmin, xmax, ymin, ymax, zmin, zmax]
 
             net_input = {
-                "mask_g": gmask_content,
-                "mask_d_l": dmask_content_lg,
-                "mask_d_s": dmask_content_sm,
-                "geo_l": voxel_content_lg,
-                "geo_s": voxel_content_sm,
-                "geo_in": input_content,
+                "mask_g": torch.from_numpy(gmask_content),
+                "mask_d_l": torch.from_numpy(dmask_content_lg),
+                "mask_d_s": torch.from_numpy(dmask_content_sm),
+                "geo_l": torch.from_numpy(voxel_content_lg),
+                "geo_s": torch.from_numpy(voxel_content_sm),
+                "geo_in": torch.from_numpy(input_content),
                 "bbox": torch.tensor(pos_content),
             }
 
