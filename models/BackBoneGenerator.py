@@ -28,43 +28,53 @@ class BackBoneGenerator(nn.Module):
         self.dim_z = dim_z
 
         # Define the convolutional layers, including dilated convolutions to control the receptive field size
-        self.conv_layers = nn.Sequential(
-            nn.Conv3d(1 + dim_z, dim_g, 3, stride=1, dilation=1, padding=1, bias=True),
-            nn.LeakyReLU(0.02, inplace=True),
-            nn.Conv3d(
-                dim_g + dim_z, dim_g * 2, 3, stride=1, dilation=2, padding=2, bias=True
-            ),
-            nn.LeakyReLU(0.02, inplace=True),
-            nn.Conv3d(
-                dim_g * 2 + dim_z,
-                dim_g * 4,
-                3,
-                stride=1,
-                dilation=2,
-                padding=2,
-                bias=True,
-            ),
-            nn.LeakyReLU(0.02, inplace=True),
-            nn.Conv3d(
-                dim_g * 4 + dim_z,
-                dim_g * 8,
-                3,
-                stride=1,
-                dilation=1,
-                padding=1,
-                bias=True,
-            ),
-            nn.LeakyReLU(0.02, inplace=True),
-            nn.Conv3d(
-                dim_g * 8 + dim_z,
-                dim_g * 8,
-                3,
-                stride=1,
-                dilation=1,
-                padding=1,
-                bias=True,
-            ),
-            nn.LeakyReLU(0.02, inplace=True),
+        self.conv_layers = nn.ModuleList(
+            [
+                nn.Conv3d(
+                    1 + dim_z, dim_g, 3, stride=1, dilation=1, padding=1, bias=True
+                ),
+                nn.LeakyReLU(0.02, inplace=True),
+                nn.Conv3d(
+                    dim_g + dim_z,
+                    dim_g * 2,
+                    3,
+                    stride=1,
+                    dilation=2,
+                    padding=2,
+                    bias=True,
+                ),
+                nn.LeakyReLU(0.02, inplace=True),
+                nn.Conv3d(
+                    dim_g * 2 + dim_z,
+                    dim_g * 4,
+                    3,
+                    stride=1,
+                    dilation=2,
+                    padding=2,
+                    bias=True,
+                ),
+                nn.LeakyReLU(0.02, inplace=True),
+                nn.Conv3d(
+                    dim_g * 4 + dim_z,
+                    dim_g * 8,
+                    3,
+                    stride=1,
+                    dilation=1,
+                    padding=1,
+                    bias=True,
+                ),
+                nn.LeakyReLU(0.02, inplace=True),
+                nn.Conv3d(
+                    dim_g * 8 + dim_z,
+                    dim_g * 8,
+                    3,
+                    stride=1,
+                    dilation=1,
+                    padding=1,
+                    bias=True,
+                ),
+                nn.LeakyReLU(0.02, inplace=True),
+            ]
         )
 
     def forward(self, voxels, z, is_training=False):

@@ -52,14 +52,14 @@ class Generator(nn.Module):
         nn.init.constant_(self.texture_codes, 0.0)
 
         # Instantiate separate backbone generators for geometry and texture
-        self.geometry_backbone_generator = BackBoneGenerator(dim_g, dim_prob, dim_z)
-        self.texture_backbone_generator = BackBoneGenerator(dim_g, dim_prob, dim_z)
+        self.geometry_backbone_generator = BackBoneGenerator(dim_g, dim_z)
+        self.texture_backbone_generator = BackBoneGenerator(dim_g, dim_z)
 
         # Instantiate the geometry and texture generators
-        self.geometry_generator = GeometryGenerator(dim_g, dim_prob, dim_z)
-        self.texture_generator = TextureGenerator(dim_g, dim_prob, dim_z)
+        self.geometry_generator = GeometryGenerator(dim_g, dim_z)
+        self.texture_generator = TextureGenerator(dim_g, dim_z)
 
-    def forward(self, voxels, geometry_z, texture_z, mask_, is_geometry_training=True):
+    def forward(self, voxels, geometry_z, texture_z, mask, is_geometry_training=True):
         """
         Forward pass through the generator.
 
@@ -71,7 +71,7 @@ class Generator(nn.Module):
             voxels (torch.Tensor): Input voxel data.
             geometry_z (torch.Tensor): Latent space representation for geometry generation.
             texture_z (torch.Tensor): Latent space representation for texture generation.
-            mask_ (torch.Tensor): Mask indicating regions of interest for generation.
+            mask (torch.Tensor): Mask indicating regions of interest for generation.
             is_geometry_training (bool, optional): Flag to control the mode of generation. Defaults to True.
 
         Returns:
@@ -81,14 +81,14 @@ class Generator(nn.Module):
 
         if is_geometry_training:
             out = self.geometry_backbone_generator(out, geometry_z)
-            out_256, out_128 = self.geometry_generator(out, geometry_z, mask_)
+            out_256, out_128 = self.geometry_generator(out, geometry_z, mask)
 
             return out_256, out_128
         else:
             with torch.no_grad():
                 out_geometry = self.geometry_backbone_generator(out, geometry_z)
                 out_geometry, _ = self.geometry_generator(
-                    out_geometry, geometry_z, mask_
+                    out_geometry, geometry_z, mask
                 )
 
             out_texture = self.texture_backbone_generator(out, texture_z)
