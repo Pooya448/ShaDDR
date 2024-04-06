@@ -552,18 +552,6 @@ class ShaddrDataset(Dataset):
             back, front, top, left, right = self.get_rendered_views(
                 hdf5_file, xmin, xmax, ymin, ymax, zmin, zmax
             )
-            render_style = (back, front, top, left)
-
-            # net_input = {
-            #     "mask_g": gmask_style,
-            #     "mask_d_l": dmask_style_lg,
-            #     "mask_d_s": dmask_style_sm,
-            #     "geo_l": voxel_style_lg,
-            #     "geo_s": voxel_style_sm,
-            #     "geo_in": input_style,
-            #     "bbox": torch.tensor(pos_style),
-            #     "renders": render_style,
-            # }
 
             net_input = {
                 "mask_g": torch.from_numpy(gmask_style).unsqueeze(0),

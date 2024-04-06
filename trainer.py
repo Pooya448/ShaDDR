@@ -1,3 +1,4 @@
+import os
 import torch
 from torch.utils.data import DataLoader
 from torch.optim import Adam
@@ -129,6 +130,61 @@ class ShaddrTrainer:
     def train(self, epochs, is_geometry_training=True):
 
         pass
+    
+    def save_checkpoint(self, epoch, config):
+        '''
+        This function saves the state disctionaries of the respective Shaddr class members
+        and returns the filepath to where the checkpoint was saved.
+        Requires:
+        epcoch: The number of epochs trained so far.
+        config: The dictionary output from configs.config.load_configuration()
+        '''
+        checkpoint_name = "ShaDDR_checkpoint_"+str(epoch)+"_epochs.pth"
+        checkpoint_filepath = os.path.join(self.run_folder, checkpoint_name)
+        checkpoint = {
+            'epoch': epoch,
+            'config': config,
+            'generator': self.generator.state_dict(),
+            'generator_optimizer': self.optim_g.state_dict(),
+            'geo_l_discriminator': self.geo_d_l.state_dict(),
+            'geo_s_discriminator': self.geo_d_s.state_dict(),
+            'geo_l_dis_optimizer': self.optim_d_l.state_dict(),
+            'geo_s_dis_optimizer': self.optim_d_s.state_dict(),
+            'tex_back_discriminator': self.tex_d_back.state_dict(),
+            'tex_front_discriminator': self.tex_d_front.state_dict(),
+            'tex_top_discriminators': self.tex_d_top.state_dict(),
+            'tex_side_discriminators': self.tex_d_side.state_dict(),
+            'tex_optimizer': self.optim_d_tex.state_dict()
+        }
+        torch.save(checkpoint, checkpoint_filepath)
+
+        print("Checkpoint File successfully saved as ", checkpoint_filepath)
+        return checkpoint_filepath
+
+    def load_checkpoint(self, checkpoint_filename):
+        '''
+        This function loads the state disctionaries in the respective Shaddr class members
+        and returns the total number of epoch trained so far.
+        Requires:
+        checkpoint_filename: The checkpoint file path.
+        '''
+        checkpoint = torch.load(checkpoint_filename)
+        epochs_trained = checkpoint['epoch']
+        self.generator.load_state_dict(checkpoint['generator'])
+        self.optim_g.load_state_dict(checkpoint['generator_optimizer'])
+        self.geo_d_l.load_state_dict(checkpoint['geo_l_discriminator'])
+        self.geo_d_s.load_state_dict(checkpoint['geo_s_discriminator'])
+        self.optim_d_l.load_state_dict(checkpoint['geo_l_dis_optimizer'])
+        self.optim_d_s.load_state_dict(checkpoint['geo_s_dis_optimizer'])
+        self.tex_d_back.load_state_dict(checkpoint['tex_back_discriminator'])
+        self.tex_d_front.load_state_dict(checkpoint['tex_front_discriminator'])
+        self.tex_d_top.load_state_dict(checkpoint['tex_top_discriminators'])
+        self.tex_d_side.load_state_dict(checkpoint['tex_side_discriminators'])
+        self.optim_d_tex.load_state_dict(checkpoint['tex_optimizer'])
+
+        print("Checkpoint loaded successfully from ", checkpoint_filename)
+
+        return epochs_trained
 
     def train_geometry(self, epochs):
         cnt_loader = DataLoader(
