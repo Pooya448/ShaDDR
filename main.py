@@ -70,6 +70,6 @@ if __name__ == "__main__":
     trainer = Trainer(config, run_folder)
     t = config["train_mode"]
     if t == "geometry":
-        trainer.train_geometry(epochs=20)
+        trainer.train_geometry(epochs=10)
     elif t == "texture":
-        trainer.train_texture(epochs=20)
+        trainer.train_texture(epochs=10)
