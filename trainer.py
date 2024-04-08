@@ -10,12 +10,15 @@ from models.Discriminator3D import Discriminator3D
 from models.Discriminator2D import Discriminator2D
 
 from dataloader.ShaddrData import ShaddrDataset
-from utils import render_voxel, get_tex_mask_d
+from utils import render_voxel, get_tex_mask_d, recover_voxel
 from tqdm import tqdm
+from scipy.ndimage.filters import gaussian_filter
+from mcubes import marching_cubes
+import trimesh
 
 
 class ShaddrTrainer:
-    def __init__(self, config, run_folder):
+    def __init__(self, config, run_folder, ckpt=None):
         """
         Initializes the trainer with the dataset, model, optimizer, and device.
 
@@ -26,13 +29,15 @@ class ShaddrTrainer:
             device (str, optional): The device to train on ('cuda' or 'cpu'). Defaults to 'cuda'.
         """
         self.mask_margin = 16
-        self.save_epoch = 1
+        self.save_epoch = 2
+        self.eval_epoch = 2
         self.threshold = 0.4
         self.render_view_id = 0
         self.d_steps = 1
         self.r_steps = 1
         self.g_steps = 1
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.config = config
         # self.voxel_renderer = voxel_renderer(self.real_size) #TODO: handle voxel renderer
 
         # Model dimensions
@@ -54,10 +59,6 @@ class ShaddrTrainer:
         self.train_mode = config["train_mode"]  # 'geometry' or 'texture'
         self.data_dir = config["data_dir"]
 
-        self.n_style = 4
-
-        self.create_models_and_optimizers()
-
         train_split = Path("splits/content_train.txt")
         test_split = Path("splits/content_test.txt")
         style_split = Path("splits/style.txt")
@@ -71,6 +72,14 @@ class ShaddrTrainer:
         self.test_dataset = ShaddrDataset(
             self.data_dir, is_style=False, split_file=test_split
         )
+
+        self.n_style = len(self.style_dataset)
+        self.create_models_and_optimizers()
+
+        if ckpt is not None:
+            self.load_checkpoint(ckpt, "only_generator")
+
+        # self.load_checkpoint("ShaDDR_geometry_checkpoint_0_epochs.pth")
 
     def create_datasets(self, rp, is_style, split_file):
         return ShaddrDataset(rp, is_style, split_file)
@@ -127,64 +136,143 @@ class ShaddrTrainer:
         params_to_train = [x.parameters() for x in tex_ds]
         self.optim_d_tex = Adam(params_to_train, lr=0.0001)
 
-    def train(self, epochs, is_geometry_training=True):
-
-        pass
-    
-    def save_checkpoint(self, epoch, config):
-        '''
+    def save_checkpoint(self, epoch, config, t_mode="geometry"):
+        """
         This function saves the state disctionaries of the respective Shaddr class members
         and returns the filepath to where the checkpoint was saved.
         Requires:
         epcoch: The number of epochs trained so far.
         config: The dictionary output from configs.config.load_configuration()
-        '''
-        checkpoint_name = "ShaDDR_checkpoint_"+str(epoch)+"_epochs.pth"
+        """
+        checkpoint_name = f"ShaDDR_{t_mode[:3]}_checkpoint_{str(epoch)}_epochs.pth"
         checkpoint_filepath = os.path.join(self.run_folder, checkpoint_name)
+
         checkpoint = {
-            'epoch': epoch,
-            'config': config,
-            'generator': self.generator.state_dict(),
-            'generator_optimizer': self.optim_g.state_dict(),
-            'geo_l_discriminator': self.geo_d_l.state_dict(),
-            'geo_s_discriminator': self.geo_d_s.state_dict(),
-            'geo_l_dis_optimizer': self.optim_d_l.state_dict(),
-            'geo_s_dis_optimizer': self.optim_d_s.state_dict(),
-            'tex_back_discriminator': self.tex_d_back.state_dict(),
-            'tex_front_discriminator': self.tex_d_front.state_dict(),
-            'tex_top_discriminators': self.tex_d_top.state_dict(),
-            'tex_side_discriminators': self.tex_d_side.state_dict(),
-            'tex_optimizer': self.optim_d_tex.state_dict()
+            "epoch": epoch,
+            "config": config,
+            "generator": self.generator.state_dict(),
+            "generator_optimizer": self.optim_g.state_dict(),
         }
+
+        if t_mode == "geometry":
+            checkpoint.update(
+                {
+                    "geo_l_discriminator": self.geo_d_l.state_dict(),
+                    "geo_s_discriminator": self.geo_d_s.state_dict(),
+                    "geo_l_dis_optimizer": self.optim_d_l.state_dict(),
+                    "geo_s_dis_optimizer": self.optim_d_s.state_dict(),
+                }
+            )
+        elif t_mode == "texture":
+            checkpoint.update(
+                {
+                    "tex_back_discriminator": self.tex_d_back.state_dict(),
+                    "tex_front_discriminator": self.tex_d_front.state_dict(),
+                    "tex_top_discriminators": self.tex_d_top.state_dict(),
+                    "tex_side_discriminators": self.tex_d_side.state_dict(),
+                    "tex_optimizer": self.optim_d_tex.state_dict(),
+                }
+            )
         torch.save(checkpoint, checkpoint_filepath)
 
         print("Checkpoint File successfully saved as ", checkpoint_filepath)
         return checkpoint_filepath
 
-    def load_checkpoint(self, checkpoint_filename):
-        '''
+    def load_checkpoint(self, checkpoint_filename, t_mode="geometry"):
+        """
         This function loads the state disctionaries in the respective Shaddr class members
         and returns the total number of epoch trained so far.
         Requires:
         checkpoint_filename: The checkpoint file path.
-        '''
+        """
         checkpoint = torch.load(checkpoint_filename)
-        epochs_trained = checkpoint['epoch']
-        self.generator.load_state_dict(checkpoint['generator'])
-        self.optim_g.load_state_dict(checkpoint['generator_optimizer'])
-        self.geo_d_l.load_state_dict(checkpoint['geo_l_discriminator'])
-        self.geo_d_s.load_state_dict(checkpoint['geo_s_discriminator'])
-        self.optim_d_l.load_state_dict(checkpoint['geo_l_dis_optimizer'])
-        self.optim_d_s.load_state_dict(checkpoint['geo_s_dis_optimizer'])
-        self.tex_d_back.load_state_dict(checkpoint['tex_back_discriminator'])
-        self.tex_d_front.load_state_dict(checkpoint['tex_front_discriminator'])
-        self.tex_d_top.load_state_dict(checkpoint['tex_top_discriminators'])
-        self.tex_d_side.load_state_dict(checkpoint['tex_side_discriminators'])
-        self.optim_d_tex.load_state_dict(checkpoint['tex_optimizer'])
+        epochs_trained = checkpoint["epoch"]
+        self.generator.load_state_dict(checkpoint["generator"])
+        self.optim_g.load_state_dict(checkpoint["generator_optimizer"])
+
+        if t_mode == "geometry":
+            self.geo_d_l.load_state_dict(checkpoint["geo_l_discriminator"])
+            self.geo_d_s.load_state_dict(checkpoint["geo_s_discriminator"])
+            self.optim_d_l.load_state_dict(checkpoint["geo_l_dis_optimizer"])
+            self.optim_d_s.load_state_dict(checkpoint["geo_s_dis_optimizer"])
+        elif t_mode == "texture":
+            self.tex_d_back.load_state_dict(checkpoint["tex_back_discriminator"])
+            self.tex_d_front.load_state_dict(checkpoint["tex_front_discriminator"])
+            self.tex_d_top.load_state_dict(checkpoint["tex_top_discriminators"])
+            self.tex_d_side.load_state_dict(checkpoint["tex_side_discriminators"])
+            self.optim_d_tex.load_state_dict(checkpoint["tex_optimizer"])
 
         print("Checkpoint loaded successfully from ", checkpoint_filename)
 
         return epochs_trained
+
+    def evaluate_geo(self, ep):
+        cnt_loader = DataLoader(
+            self.test_dataset, batch_size=1, shuffle=False, num_workers=24
+        )
+
+        tq = tqdm(cnt_loader)
+        for i, batch in enumerate(tq):
+
+            # self.style_dataset.__getitem__(z_idx_r)
+
+            cnt_mask_g = batch["mask_g"].to(self.device).unsqueeze(0).float()
+            cnt_geo_in = batch["geo_in"].to(self.device).unsqueeze(0).float()
+            cnt_geo_l = batch["geo_l"].to(self.device).unsqueeze(0).float()
+            cnt_bbox = batch["bbox"].squeeze().cpu().numpy()
+
+            if ep == self.eval_epoch:
+                with torch.no_grad():
+                    cnt_geo_l = cnt_geo_l.detach().squeeze().cpu().numpy()
+                    cnt_geo_l = recover_voxel(cnt_geo_l, cnt_bbox)
+                    v, f = self.extract_surface(cnt_geo_l)
+                    mesh = trimesh.Trimesh(vertices=v, faces=f)
+                    save_path = Path(self.run_folder) / f"cnt_shape-{i}.obj"
+                    mesh.export(save_path)
+
+            for s_idx in range(self.n_style):
+
+                if ep == self.eval_epoch:
+                    bacth = self.style_dataset.__getitem__(s_idx)
+                    stl = bacth["geo_l"].float().detach().squeeze().cpu().numpy()
+                    stl_bbox = bacth["bbox"].squeeze().cpu().numpy()
+                    stl = recover_voxel(stl, stl_bbox)
+                    v, f = self.extract_surface(stl)
+                    mesh = trimesh.Trimesh(vertices=v, faces=f)
+                    save_path = Path(self.run_folder) / f"sty_shape-{s_idx}.obj"
+                    mesh.export(save_path)
+
+                with torch.no_grad():
+                    z_torch, _ = self.geo_style_with_idx(s_idx)
+                    geo_code = torch.matmul(
+                        z_torch, self.generator.geometry_codes
+                    ).view([1, -1, 1, 1, 1])
+                    voxel_gen_l, voxel_gen_s = self.generator(
+                        voxels=cnt_geo_in,
+                        geometry_z=geo_code,
+                        texture_z=None,
+                        mask=cnt_mask_g,
+                        is_geometry_training=True,
+                    )
+
+                gen_shape = voxel_gen_l.squeeze().squeeze().cpu().numpy()
+                gen_shape = gaussian_filter(gen_shape, sigma=1.0)
+                gen_shape = recover_voxel(gen_shape, cnt_bbox)
+
+                v, f = self.extract_surface(gen_shape)
+                mesh = trimesh.Trimesh(vertices=v, faces=f)
+                save_path = (
+                    Path(self.run_folder) / f"epoch-{ep}_shape-{i}_style-{s_idx}.obj"
+                )
+                mesh.export(save_path)
+
+    def extract_surface(self, voxel, threshold=0.4):
+        v, f = marching_cubes(voxel, threshold)
+        v = (v + 0.5) / voxel.shape[0] - 0.5
+        return v, f
+
+    def evaluate_tex(self):
+        pass
 
     def train_geometry(self, epochs):
         cnt_loader = DataLoader(
@@ -192,13 +280,14 @@ class ShaddrTrainer:
         )
         # stl_loader = DataLoader(self.style_dataset, batch_size=1, shuffle=True)
 
-        for epoch in tqdm(range(epochs)):
+        for epoch in range(epochs):
 
             self.geo_d_s.train()
             self.geo_d_l.train()
             self.generator.train()
 
-            for i, batch in enumerate(cnt_loader):
+            tq = tqdm(cnt_loader)
+            for i, batch in enumerate(tq):
 
                 # z_ = np.zeros([self.n_style], np.float32)
                 # z_idx = np.random.randint(self.n_style)
@@ -278,6 +367,10 @@ class ShaddrTrainer:
                     )
                     loss_fake_s.backward()
 
+                    loss_d = (
+                        loss_fake_l + loss_fake_s + loss_real_l + loss_real_s
+                    ) / 4  # Only for logging purposes
+
                     self.optim_d_s.step()
                     self.geo_d_s.zero_grad()
 
@@ -352,11 +445,17 @@ class ShaddrTrainer:
                     self.optim_g.step()
                     self.generator.zero_grad()
 
-                    report_str = f"Epoch: {epoch}, loss_g: {loss_g.item()}, loss_r: {loss_r.item()}, loss_d: {loss_fake_l.item() + loss_fake_s.item()}"
-                    print(report_str)
+                    # report_str = f"Epoch: {epoch}, loss_g: {loss_g.item()}, loss_r: {loss_r.item()}, loss_d: {loss_d.item()}"
+                    report_str = f"Epoch [{epoch+1}/{epochs}], Loss G: {loss_g.item():.4f}, Loss R: {loss_r.item():.4f}, Loss D: {loss_d.item():.4f}"
+                    tq.set_description(report_str)
+                    # print(report_str)
+            if (epoch + 1) % self.save_epoch == 0:
+                self.save_checkpoint(epoch, self.config)
 
-            report_str = f"Epoch: {epoch}, loss_g: {loss_g.item()}, loss_r: {loss_r.item()}, loss_d: {loss_fake_l.item() + loss_fake_s.item()}"
-            print(report_str)
+            if (epoch + 1) % self.eval_epoch == 0:
+                self.evaluate_geo(epoch + 1)
+            # report_str = f"Epoch: {epoch}, loss_g: {loss_g.item()}, loss_r: {loss_r.item()}, loss_d: {loss_fake_l.item() + loss_fake_s.item()}"
+            # print(report_str)
 
     def train_texture(self, epochs):
         cnt_loader = DataLoader(
@@ -373,7 +472,8 @@ class ShaddrTrainer:
 
             self.generator.train()
 
-            for i, batch in enumerate(cnt_loader):
+            tq = tqdm(cnt_loader)
+            for i, batch in enumerate(tq):
 
                 # z_torch_geo, z_idx_geo = self.sample_random_style()
                 # z_torch_tex, z_idx_tex = self.sample_random_style()
@@ -486,6 +586,10 @@ class ShaddrTrainer:
                         + loss_fake_side
                     )
                     total_gen.backward()
+
+                    total_D = (
+                        total_style + total_gen
+                    ) / 2  ### Only for logging purposes
                     self.optim_d_tex.step()
 
                 ### Reconstruction training
@@ -597,8 +701,11 @@ class ShaddrTrainer:
                     loss_g.backward()
                     self.optim_g.step()
 
-            report_str = f"Epoch: {epoch}, loss_g: {loss_g.item()}, loss_r: {total_r_loss.item()}, loss_d: {total_gen.item()}"
-            print(report_str)
+                    report_str = f"Epoch: [{epoch}/{epochs}], Loss G: {loss_g.item()}, Loss R: {total_r_loss.item()}, Loss D: {total_D.item()}"
+                    tq.set_description(report_str)
+
+            if epoch % self.save_epoch == 0:
+                self.save_checkpoint(epoch, self.config, t_mode="texture")
 
     def calculate_r_tex_loss(self, gen, gt, beta):
         total = torch.mean(torch.abs(gen - gt) ** 2) * beta
@@ -650,6 +757,12 @@ class ShaddrTrainer:
         z_geo_torch = torch.from_numpy(z_geo).to(self.device).view([1, -1])
         z_tex_torch = torch.from_numpy(z_tex).to(self.device).view([1, -1])
         return z_geo_torch, z_tex_torch, idx
+
+    def geo_style_with_idx(self, idx):
+        z_ = np.zeros([self.n_style], np.float32)
+        z_[idx] = 1
+        z_torch = torch.from_numpy(z_).to(self.device).view([1, -1])
+        return z_torch, idx
 
     def compute_loss(self, output):
         pass

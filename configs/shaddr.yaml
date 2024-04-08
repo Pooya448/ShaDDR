@@ -2,7 +2,7 @@ in_size: 32
 out_size: 256
 dim_g: 32
 dim_d: 32
-dim_z: 4
+dim_z: 8
 alpha: 0.3
 beta: 10
 data_dir: data/

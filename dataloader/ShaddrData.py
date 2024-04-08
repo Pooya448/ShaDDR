@@ -595,25 +595,25 @@ class ShaddrDataset(Dataset):
             return net_input
 
 
-if __name__ == "__main__":
-    root_path = r"C:\Users\chara\OneDrive\Desktop\Frontiers of VC\Project\data\Shapenet_Voxels\03001627"
-    is_style = True
-    split_file = r"C:\Users\chara\OneDrive\Desktop\Frontiers of VC\Project\temp_project_folder\splits\style_color_chair_4.txt"
+# if __name__ == "__main__":
+#     root_path = r"C:\Users\chara\OneDrive\Desktop\Frontiers of VC\Project\data\Shapenet_Voxels\03001627"
+#     is_style = True
+#     split_file = r"C:\Users\chara\OneDrive\Desktop\Frontiers of VC\Project\temp_project_folder\splits\style_color_chair_4.txt"
 
-    style_dataset = ShaddrDataset(root_path, is_style, split_file)
+#     style_dataset = ShaddrDataset(root_path, is_style, split_file)
 
-    root_path = r"C:\Users\chara\OneDrive\Desktop\Frontiers of VC\Project\data\Shapenet_Voxels\03001627"
-    is_style = False
-    split_file = r"C:\Users\chara\OneDrive\Desktop\Frontiers of VC\Project\temp_project_folder\splits\content_chair_train.txt"
+#     root_path = r"C:\Users\chara\OneDrive\Desktop\Frontiers of VC\Project\data\Shapenet_Voxels\03001627"
+#     is_style = False
+#     split_file = r"C:\Users\chara\OneDrive\Desktop\Frontiers of VC\Project\temp_project_folder\splits\content_chair_train.txt"
 
-    content_dataset = ShaddrDataset(root_path, is_style, split_file)
+#     content_dataset = ShaddrDataset(root_path, is_style, split_file)
 
-    from torch.utils.data import DataLoader
+#     from torch.utils.data import DataLoader
 
-    content_dataloader = DataLoader(content_dataset, batch_size=1)
-    style_dataloader = DataLoader(style_dataset, batch_size=1)
+#     content_dataloader = DataLoader(content_dataset, batch_size=1)
+#     style_dataloader = DataLoader(style_dataset, batch_size=1)
 
-    # for i, net_input in enumerate(content_dataloader):
-    #     print(i, net_input)
-    for i, net_input in enumerate(style_dataloader):
-        print(i, net_input)
+#     # for i, net_input in enumerate(content_dataloader):
+#     #     print(i, net_input)
+#     for i, net_input in enumerate(style_dataloader):
+#         print(i, net_input)

@@ -2,6 +2,57 @@
 
 import torch
 import torch.nn.functional as F
+import numpy as np
+
+
+def recover_voxel(vox, bbox):
+    xmin, xmax, ymin, ymax, zmin, zmax = bbox[0], bbox[1], bbox[2], bbox[3], bbox[4], bbox[5]
+    umsample_rate = 8
+    real_size = 256
+    mask_margin = 16
+    tmpvox = np.zeros([real_size, real_size, real_size], np.float32)
+    xmin_, ymin_, zmin_ = (0, 0, 0)
+    xmax_, ymax_, zmax_ = vox.shape
+    xmin = xmin * umsample_rate - mask_margin
+    xmax = xmax * umsample_rate + mask_margin
+    ymin = ymin * umsample_rate - mask_margin
+    ymax = ymax * umsample_rate + mask_margin
+
+    zmin = zmin * umsample_rate
+    zmin_ = mask_margin
+
+    zmax = zmax * umsample_rate + mask_margin
+
+    if xmin < 0:
+        xmin_ = -xmin
+        xmin = 0
+    if xmax > real_size:
+        xmax_ = xmax_ + real_size - xmax
+        xmax = real_size
+    if ymin < 0:
+        ymin_ = -ymin
+        ymin = 0
+    if ymax > real_size:
+        ymax_ = ymax_ + real_size - ymax
+        ymax = real_size
+    if zmin < 0:
+        zmin_ = -zmin
+        zmin = 0
+    if zmax > real_size:
+        zmax_ = zmax_ + real_size - zmax
+        zmax = real_size
+
+    tmpvox[xmin:xmax, ymin:ymax, zmin:zmax] = vox[xmin_:xmax_, ymin_:ymax_, zmin_:zmax_]
+    if zmin * 2 - zmax - 1 < 0:
+        tmpvox[xmin:xmax, ymin:ymax, zmin - 1 :: -1] = vox[
+            xmin_:xmax_, ymin_:ymax_, zmin_:zmax_
+        ]
+    else:
+        tmpvox[xmin:xmax, ymin:ymax, zmin - 1 : zmin * 2 - zmax - 1 : -1] = vox[
+            xmin_:xmax_, ymin_:ymax_, zmin_:zmax_
+        ]
+
+    return tmpvox
 
 
 def render_voxel(geometry_tensor, texture_tensor):
