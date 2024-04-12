@@ -1,3 +1,5 @@
+### This code is heavily influenced by data processing parts of https://github.com/czq142857/DECOR-GAN/blob/main/modelAE.py
+
 import os
 import h5py
 import numpy as np

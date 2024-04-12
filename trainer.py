@@ -8,7 +8,7 @@ from pathlib import Path
 from models.Generator import Generator
 from models.Discriminator3D import Discriminator3D
 from models.Discriminator2D import Discriminator2D
-
+from models.Renderer import voxel_renderer
 from dataloader.ShaddrData import ShaddrDataset
 from utils import render_voxel, get_tex_mask_d, recover_voxel
 from tqdm import tqdm
@@ -38,7 +38,7 @@ class ShaddrTrainer:
         self.g_steps = 1
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.config = config
-        # self.voxel_renderer = voxel_renderer(self.real_size) #TODO: handle voxel renderer
+        self.voxel_renderer = voxel_renderer(self.real_size)
 
         # Model dimensions
         self.in_size = config["in_size"]
@@ -52,8 +52,6 @@ class ShaddrTrainer:
         self.gamma = 1
 
         self.up_factor = self.out_size // self.in_size
-
-        # self.real_size = config.out_size  # TODO: Change with self.output_size
 
         self.run_folder = run_folder
         self.train_mode = config["train_mode"]  # 'geometry' or 'texture'
@@ -78,8 +76,6 @@ class ShaddrTrainer:
 
         if ckpt is not None:
             self.load_checkpoint(ckpt, "only_generator")
-
-        # self.load_checkpoint("ShaDDR_geometry_checkpoint_0_epochs.pth")
 
     def create_datasets(self, rp, is_style, split_file):
         return ShaddrDataset(rp, is_style, split_file)
@@ -133,8 +129,6 @@ class ShaddrTrainer:
             self.tex_d_side,
         ]
         return tex_ds
-        params_to_train = [x.parameters() for x in tex_ds]
-        self.optim_d_tex = Adam(params_to_train, lr=0.0001)
 
     def save_checkpoint(self, epoch, config, t_mode="geometry"):
         """
@@ -214,8 +208,6 @@ class ShaddrTrainer:
         tq = tqdm(cnt_loader)
         for i, batch in enumerate(tq):
 
-            # self.style_dataset.__getitem__(z_idx_r)
-
             cnt_mask_g = batch["mask_g"].to(self.device).unsqueeze(0).float()
             cnt_geo_in = batch["geo_in"].to(self.device).unsqueeze(0).float()
             cnt_geo_l = batch["geo_l"].to(self.device).unsqueeze(0).float()
@@ -278,7 +270,6 @@ class ShaddrTrainer:
         cnt_loader = DataLoader(
             self.train_dataset, batch_size=1, shuffle=True, num_workers=24
         )
-        # stl_loader = DataLoader(self.style_dataset, batch_size=1, shuffle=True)
 
         for epoch in range(epochs):
 
@@ -289,15 +280,8 @@ class ShaddrTrainer:
             tq = tqdm(cnt_loader)
             for i, batch in enumerate(tq):
 
-                # z_ = np.zeros([self.n_style], np.float32)
-                # z_idx = np.random.randint(self.n_style)
-                # z_[z_idx] = 1
-                # z_torch = torch.from_numpy(z_).to(self.device).view([1, -1])
-
                 z_torch, z_idx = self.sample_random_style()
 
-                # style_batch = self.style_dataset.__getitem__(z_idx)
-                # mask_g =
                 cnt_mask_g = batch["mask_g"].to(self.device).unsqueeze(0).float()
                 cnt_mask_d_l = batch["mask_d_l"].to(self.device).unsqueeze(0).float()
                 cnt_mask_d_s = batch["mask_d_s"].to(self.device).unsqueeze(0).float()
@@ -353,7 +337,7 @@ class ShaddrTrainer:
                     self.optim_d_l.step()
                     self.geo_d_l.zero_grad()
 
-                    # Small
+                    # Small -> 128
                     d_s = self.geo_d_s(style_geo_s, is_training=True)
                     loss_real_s = self.calculate_d_loss(
                         d_s, style_mask_d_s, z_idx, is_real=True
@@ -445,23 +429,19 @@ class ShaddrTrainer:
                     self.optim_g.step()
                     self.generator.zero_grad()
 
-                    # report_str = f"Epoch: {epoch}, loss_g: {loss_g.item()}, loss_r: {loss_r.item()}, loss_d: {loss_d.item()}"
                     report_str = f"Epoch [{epoch+1}/{epochs}], Loss G: {loss_g.item():.4f}, Loss R: {loss_r.item():.4f}, Loss D: {loss_d.item():.4f}"
                     tq.set_description(report_str)
-                    # print(report_str)
+
             if (epoch + 1) % self.save_epoch == 0:
                 self.save_checkpoint(epoch, self.config)
 
             if (epoch + 1) % self.eval_epoch == 0:
                 self.evaluate_geo(epoch + 1)
-            # report_str = f"Epoch: {epoch}, loss_g: {loss_g.item()}, loss_r: {loss_r.item()}, loss_d: {loss_fake_l.item() + loss_fake_s.item()}"
-            # print(report_str)
 
     def train_texture(self, epochs):
         cnt_loader = DataLoader(
             self.train_dataset, batch_size=1, shuffle=True, num_workers=24
         )
-        # stl_loader = DataLoader(self.style_dataset, batch_size=1, shuffle=True)
 
         for epoch in range(epochs):
 
@@ -475,14 +455,9 @@ class ShaddrTrainer:
             tq = tqdm(cnt_loader)
             for i, batch in enumerate(tq):
 
-                # z_torch_geo, z_idx_geo = self.sample_random_style()
-                # z_torch_tex, z_idx_tex = self.sample_random_style()
-
                 z_torch_geo, z_torch_tex, z_style_idx = self.sample_style_tex()
 
                 cnt_mask_g = batch["mask_g"].to(self.device).unsqueeze(0).float()
-                # cnt_mask_d_l = batch["mask_d_l"].to(self.device).unsqueeze(0).float()
-                # cnt_mask_d_s = batch["mask_d_s"].to(self.device).unsqueeze(0).float()
                 cnt_geo_in = batch["geo_in"].to(self.device).unsqueeze(0).float()
 
                 geo_code = torch.matmul(
@@ -763,9 +738,3 @@ class ShaddrTrainer:
         z_[idx] = 1
         z_torch = torch.from_numpy(z_).to(self.device).view([1, -1])
         return z_torch, idx
-
-    def compute_loss(self, output):
-        pass
-
-    def post_epoch_actions(self, epoch):
-        pass

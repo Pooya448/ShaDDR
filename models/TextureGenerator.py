@@ -29,7 +29,6 @@ class TextureGenerator(nn.Module):
         self.dim_g = dim_g
         self.dim_z = dim_z
 
-        # Define the convolutional layers for texture synthesis
         self.conv_5 = nn.ConvTranspose3d(
             dim_g * 8 + dim_z, dim_g * 4, 4, stride=2, padding=1, bias=True
         )
@@ -49,7 +48,7 @@ class TextureGenerator(nn.Module):
             dim_g, 3, 3, stride=1, padding=1, bias=True
         )  # Output 3 channels for RGB texture
 
-    def forward(self, voxels, z, is_training=False):
+    def forward(self, voxels, z):
         """
         Forward pass through the generator.
 
@@ -60,7 +59,6 @@ class TextureGenerator(nn.Module):
         Parameters:
             voxels (torch.Tensor): Input voxel data.
             z (torch.Tensor): Latent space representation to be integrated at each stage.
-            is_training (bool, optional): Flag indicating if the model is in training mode. Defaults to False.
 
         Returns:
             torch.Tensor: The generated texture data with three channels for RGB representation.
@@ -77,6 +75,6 @@ class TextureGenerator(nn.Module):
         # Final texture representation layer
         out = self.conv_10(out)
         out = torch.max(torch.min(out, out * 0.002 + 0.998), out * 0.002)
-        # out = torch.sigmoid(out)  # Uncomment if you prefer sigmoid activation for the final output
+        out = torch.sigmoid(out)
 
         return out

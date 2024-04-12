@@ -1,4 +1,4 @@
-### Contains utility functions for the project. some of the functions are taken from different parts of https://github.com/qiminchen/ShaDDR/tree/main with some modifications.
+### Contains utility functions for the project. some of the functions are taken from different parts of https://github.com/czq142857/DECOR-GAN/tree/main with some modifications.
 
 import torch
 import torch.nn.functional as F
@@ -6,7 +6,14 @@ import numpy as np
 
 
 def recover_voxel(vox, bbox):
-    xmin, xmax, ymin, ymax, zmin, zmax = bbox[0], bbox[1], bbox[2], bbox[3], bbox[4], bbox[5]
+    xmin, xmax, ymin, ymax, zmin, zmax = (
+        bbox[0],
+        bbox[1],
+        bbox[2],
+        bbox[3],
+        bbox[4],
+        bbox[5],
+    )
     umsample_rate = 8
     real_size = 256
     mask_margin = 16

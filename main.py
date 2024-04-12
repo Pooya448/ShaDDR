@@ -17,7 +17,6 @@ if __name__ == "__main__":
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     mp.set_start_method("spawn", force=True)
-    # torch.set_default_device(device)
     torch.set_default_dtype(torch.float32)
     torch.set_float32_matmul_precision("high")
 

@@ -44,7 +44,7 @@ class Discriminator2D(nn.Module):
             nn.Sigmoid(),
         )
 
-    def forward(self, voxels, is_training=False):
+    def forward(self, voxels):
         """
         Forward pass through the discriminator.
 
@@ -52,7 +52,6 @@ class Discriminator2D(nn.Module):
 
         Parameters:
             voxels (torch.Tensor): The input image data.
-            is_training (bool, optional): Flag indicating if the model is in training mode. Defaults to False.
 
         Returns:
             torch.Tensor: The discriminator's output.
